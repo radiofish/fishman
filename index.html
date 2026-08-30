@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Farid H. — Product Builder</title>
+<meta name="description" content="Farid H. — product builder, San Francisco.">
+
+<!-- ============================================================
+     SIMPLE TECH: one self-contained file. No build, no framework.
+     Dark mode follows the OS setting via a prefers-color-scheme media
+     query (works everywhere), and the toggle overrides it with a
+     .dark / .light class on <html> that JS remembers across visits.
+
+     EDIT the marked spots:
+       EDIT: TOPBAR   — name + contact email
+       EDIT: ABOUT    — the bio blurb
+       EDIT: PICTURE  — the portrait image
+       EDIT: REACH    — the big footer links
+
+     Selected Work cards are NOT edited here — they're read from
+     works.json (fetched at load time) so the list can be updated
+     without touching any markup. See works.json in this same folder.
+     The three cards below are just the no-JS / fetch-failed fallback.
+     ============================================================ -->
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;700;800;900&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<style>
+  /* ---------- LIGHT (default) ---------- */
+  :root{
+    color-scheme:light dark;
+    --paper:#FAFAF8;
+    --ink:#0E0E0E;
+    --meta:#6E6E6E;
+    --line:#E2E1DC;
+
+    --h1:#0E0E0E;   /* Farid H.   — darkest       */
+    --h2:#565656;   /* Product / Builder — lighter */
+    --h3:#8C8C8C;   /* San        — lighter still  */
+    --h4:#BBBBBB;   /* Francisco  — lightest       */
+
+    --c1:#141414;
+    --c2:#202020;
+    --c3:#2C2C2C;
+    --card-border:transparent;
+
+    --radius:8px;
+
+    --pad:clamp(1.25rem, 4vw, 3.25rem);
+  }
+
+  /* ---------- DARK ---------- */
+  /* Baseline: follow the OS. Plain media query — supported everywhere,
+     no :has(), no JS required. */
+  @media (prefers-color-scheme: dark){
+    :root{
+    color-scheme:dark;
+    --paper:#0C0C0C;
+    --ink:#F5F4F1;
+    --meta:#8A8A88;
+    --line:#262626;
+
+    --h1:#F5F4F1;
+    --h2:#A6A6A4;
+    --h3:#6F6F6D;
+    --h4:#4A4A48;
+
+    --c1:#1C1C1C;
+    --c2:#262626;
+    --c3:#303030;
+    --card-border:rgba(255,255,255,0.14);
+    }
+  }
+  /* Manual override: JS adds .dark or .light to <html>. */
+  :root.dark{
+    color-scheme:dark;
+    --paper:#0C0C0C;
+    --ink:#F5F4F1;
+    --meta:#8A8A88;
+    --line:#262626;
+
+    --h1:#F5F4F1;
+    --h2:#A6A6A4;
+    --h3:#6F6F6D;
+    --h4:#4A4A48;
+
+    --c1:#1C1C1C;
+    --c2:#262626;
+    --c3:#303030;
+    --card-border:rgba(255,255,255,0.14);
+  }
+  :root.light{
+    color-scheme:light;
+    --paper:#FAFAF8;
+    --ink:#0E0E0E;
+    --meta:#6E6E6E;
+    --line:#E2E1DC;
+
+    --h1:#0E0E0E;
+    --h2:#565656;
+    --h3:#8C8C8C;
+    --h4:#BBBBBB;
+
+    --c1:#141414;
+    --c2:#202020;
+    --c3:#2C2C2C;
+    --card-border:transparent;
+  }
+
+  *{ box-sizing:border-box; margin:0; padding:0; }
+
+  html{
+    -webkit-text-size-adjust:100%;
+    min-height:100%;
+    background:var(--paper);
+    transition:background-color .3s ease;
+  }
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:"Archivo", Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing:antialiased;
+    line-height:1.5;
+    transition:background-color .3s ease, color .3s ease;
+  }
+
+  .frame{
+    max-width:1080px; margin:0 auto;
+    min-height:100vh; min-height:100dvh;
+    padding:0 var(--pad);
+    display:flex; flex-direction:column;
+  }
+
+  .label{
+    font-family:"IBM Plex Mono", monospace;
+    font-size:0.68rem; letter-spacing:0.08em;
+    text-transform:uppercase; color:var(--meta);
+  }
+
+  /* ---------- bars ---------- */
+  .bar{
+    display:flex; justify-content:space-between; align-items:baseline;
+    gap:1rem; padding:1.1rem 0;
+    font-family:"IBM Plex Mono", monospace;
+    font-size:0.68rem; letter-spacing:0.08em; text-transform:uppercase;
+    color:var(--meta);
+  }
+  .bar--top{ border-bottom:1px solid var(--line); }
+  .bar--bottom{ border-top:1px solid var(--line); margin-top:auto; }
+  .bar .mid{ text-align:center; }
+  .bar strong{ color:var(--ink); font-weight:500; }
+  .bar a{ color:inherit; text-decoration:none; }
+  .bar a:hover{ color:var(--ink); }
+  .bar .mid a{ display:block; }
+  .topright{ display:flex; align-items:baseline; gap:1.1rem; }
+
+  /* ---------- theme toggle (pure CSS) ---------- */
+  .toggle{
+    display:inline-flex; align-items:center;
+    cursor:pointer; color:var(--meta);
+    -webkit-tap-highlight-color:transparent;
+  }
+  .toggle:hover{ color:var(--ink); }
+  .toggle input{
+    position:absolute; width:1px; height:1px;
+    opacity:0; pointer-events:none;
+  }
+  .toggle:focus-within{ outline:2px solid var(--ink); outline-offset:3px; }
+
+  /* ---------- hero ---------- */
+  .hero{
+    display:grid; grid-template-columns:1fr 3.4fr; gap:1.5rem;
+    padding:clamp(3.5rem,11vw,7rem) 0 clamp(2.5rem,7vw,4.5rem);
+  }
+  .hero__label{ padding-top:0.5rem; }
+
+  .headline{
+    font-weight:800;
+    font-size:clamp(2.7rem, 9.5vw, 6.4rem);
+    line-height:0.9; letter-spacing:-0.03em; text-transform:uppercase;
+  }
+  .headline span{ display:block; overflow:hidden; }
+  .headline span i{ display:block; font-style:normal; }
+  .headline .t1{ color:var(--h1); }
+  .headline .t2{ color:var(--h2); }
+  .headline .t3{ color:var(--h3); }
+  .headline .t4{ color:var(--h4); }
+
+  .about{
+    margin-top:clamp(2rem,5vw,3rem);
+    display:grid; grid-template-columns:1fr 3.4fr; gap:1.5rem;
+  }
+  .about__label{ padding-top:0.35rem; }
+  .about__text{ font-size:0.9rem; line-height:1.55; color:var(--ink); }
+
+  /* ---------- app cards ---------- */
+  .work{ padding:clamp(1rem,3vw,2rem) 0 clamp(3rem,8vw,5rem); }
+  .work__grid{
+    margin-top:clamp(1.5rem,4vw,2.5rem);
+    display:grid; grid-template-columns:repeat(auto-fit, minmax(190px,1fr));
+    gap:clamp(0.75rem,1.6vw,1.1rem);
+  }
+  .card{
+    background:var(--c1); color:#fff; aspect-ratio:4/3;
+    padding:clamp(1rem,1.8vw,1.4rem);
+    display:flex; flex-direction:column; text-decoration:none;
+    border:1px solid var(--card-border);
+    border-radius:var(--radius);
+    overflow:hidden;
+    transition:transform .2s ease, border-color .3s ease, background-color .3s ease;
+  }
+  .card--1{ background:var(--c1); }
+  .card--2{ background:var(--c2); }
+  .card--3{ background:var(--c3); }
+
+  /* image card — fills the tile, no padding */
+  .card--img{ padding:0; aspect-ratio:auto; display:block; background:transparent; border:none; }
+  .card--img img{
+    width:100%; height:auto; display:block;
+    border-radius:inherit;
+    filter:grayscale(1) contrast(1.02);   /* stays on-theme */
+  }
+  .card__top{ display:flex; justify-content:space-between; align-items:flex-start; }
+  .card__tag{
+    font-family:"IBM Plex Mono", monospace; font-size:0.62rem;
+    letter-spacing:0.1em; text-transform:uppercase; color:rgba(255,255,255,0.55);
+  }
+  .card__icon{ width:34px; height:34px; flex:0 0 auto; color:#fff; }
+  .card__icon svg{ width:100%; height:100%; display:block; }
+  .card__body{ margin-top:auto; }
+  .card__name{ font-weight:700; font-size:clamp(1.05rem,1.7vw,1.3rem); line-height:1.1; letter-spacing:-0.01em; }
+  .card__desc{ margin-top:0.5rem; font-size:0.78rem; line-height:1.45; color:rgba(255,255,255,0.7); }
+  .card__link{
+    margin-top:1rem; font-family:"IBM Plex Mono", monospace;
+    font-size:0.68rem; letter-spacing:0.08em; text-transform:uppercase;
+    display:inline-flex; align-items:center; gap:0.4em; color:#fff;
+  }
+  .card__link .arw{ transition:transform .2s ease; }
+  .card:hover{ transform:translateY(-3px); }
+  .card:hover .card__link .arw{ transform:translate(3px,-3px); }
+  .card:focus-visible{ outline:2px solid var(--ink); outline-offset:3px; }
+
+  /* ---------- portrait card ---------- */
+  .photo{ display:grid; grid-template-columns:1fr 3.4fr; gap:1.5rem; padding:0 0 clamp(3rem,8vw,5rem); }
+  .photo__card{ grid-column:2; max-width:320px; width:100%; }
+
+  /* ---------- reach ---------- */
+  .reach{ display:grid; grid-template-columns:1fr 3.4fr; gap:1.5rem; padding:0 0 clamp(3rem,8vw,5.5rem); }
+  .reach__label{ padding-top:0.9rem; }
+  .reach__links{ display:flex; flex-direction:column; }
+  .reach__links a{
+    font-weight:800; font-size:clamp(2.1rem,7.5vw,4.6rem);
+    line-height:0.96; letter-spacing:-0.03em; text-transform:uppercase;
+    color:var(--ink); text-decoration:none; width:max-content; max-width:100%;
+    transition:opacity .18s ease;
+  }
+  .reach__links a:hover{ opacity:0.45; }
+  .reach__links a:focus-visible{ outline:2px solid var(--ink); outline-offset:4px; }
+
+  /* ---------- load motion ---------- */
+  .headline span i{ transform:translateY(103%); animation:rise .8s cubic-bezier(.16,.84,.28,1) forwards; }
+  .reveal{ transform:translateY(12px); opacity:0; animation:fade .7s ease forwards; }
+  .headline span:nth-child(1) i{ animation-delay:.05s; }
+  .headline span:nth-child(2) i{ animation-delay:.12s; }
+  .headline span:nth-child(3) i{ animation-delay:.19s; }
+  .headline span:nth-child(4) i{ animation-delay:.26s; }
+  @keyframes rise{ to{ transform:translateY(0); } }
+  @keyframes fade{ to{ transform:translateY(0); opacity:1; } }
+  @media (prefers-reduced-motion: reduce){
+    .headline span i,.reveal{ animation:none; transform:none; opacity:1; }
+    html,body,.card{ transition:none; }
+  }
+
+  /* ---------- responsive ---------- */
+  @media (max-width:720px){
+    .hero,.about,.reach,.photo{ grid-template-columns:1fr; gap:0.75rem; }
+    .hero__label,.about__label,.reach__label{ padding-top:0; }
+    .work__grid{ grid-template-columns:1fr; }
+    .photo__card{ grid-column:auto; margin-right:auto; }
+    .card{ aspect-ratio:auto; min-height:150px; }
+    .bar .mid{ display:none; }
+    .reach__links a{ font-size:clamp(2rem,13vw,3rem); }
+  }
+</style>
+</head>
+
+<body>
+<div class="frame">
+
+  <!-- EDIT: TOPBAR -->
+  <header class="bar bar--top">
+    <span><strong>Farid H.</strong></span>
+    <span class="topright">
+      <span>SF&nbsp;[&nbsp;<span id="clock">—</span>&nbsp;]</span>
+      <label class="toggle">
+        <input type="checkbox" id="theme-switch" aria-label="Toggle dark mode">
+        <span class="toggle__txt" aria-hidden="true">[ Dark ]</span>
+      </label>
+    </span>
+  </header>
+
+  <!-- HERO -->
+  <section class="hero">
+    <span class="label hero__label reveal">[ Index ]</span>
+    <h1 class="headline">
+      <span><i class="t1">Farid H.</i></span>
+      <span><i class="t2">Product</i></span>
+      <span><i class="t2">Builder</i></span>
+      <span><i><span class="t3">San</span><span class="t4">Francisco</span></i></span>
+    </h1>
+  </section>
+
+  <!-- EDIT: ABOUT -->
+  <section class="about">
+    <span class="label about__label reveal">[ About ]</span>
+    <p class="about__text reveal">
+      I’m a lifelong builder and creative who loves bringing ideas to
+      life. First for myself and then for anyone else out there who
+      might find them interesting.
+    </p>
+  </section>
+
+  <!-- Selected Work — populated from works.json by the script below.
+       These three cards are the fallback shown if the fetch fails
+       (e.g. opened as a local file:// page instead of served). -->
+  <section class="work">
+    <span class="label">[ Selected Work ]</span>
+    <div class="work__grid" id="work-grid">
+
+      <a class="card card--1" href="#">
+        <div class="card__top">
+          <span class="card__tag">[ Web ]</span>
+          <span class="card__icon" aria-hidden="true">
+            <svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="2.4">
+              <rect x="5" y="5" width="30" height="30"/><path d="M5 15h30M15 5v30"/>
+            </svg>
+          </span>
+        </div>
+        <div class="card__body">
+          <div class="card__name">App One</div>
+          <p class="card__desc">One line on what it does and who it’s for.</p>
+          <span class="card__link">Visit <span class="arw">↗</span></span>
+        </div>
+      </a>
+
+      <a class="card card--2" href="#">
+        <div class="card__top">
+          <span class="card__tag">[ iOS ]</span>
+          <span class="card__icon" aria-hidden="true">
+            <svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="2.4">
+              <circle cx="20" cy="20" r="15"/><circle cx="20" cy="20" r="5" fill="currentColor"/>
+            </svg>
+          </span>
+        </div>
+        <div class="card__body">
+          <div class="card__name">App Two</div>
+          <p class="card__desc">One line on what it does and who it’s for.</p>
+          <span class="card__link">Visit <span class="arw">↗</span></span>
+        </div>
+      </a>
+
+      <a class="card card--3" href="#">
+        <div class="card__top">
+          <span class="card__tag">[ Web ]</span>
+          <span class="card__icon" aria-hidden="true">
+            <svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="2.4">
+              <path d="M20 5l15 26H5z"/>
+            </svg>
+          </span>
+        </div>
+        <div class="card__body">
+          <div class="card__name">App Three</div>
+          <p class="card__desc">One line on what it does and who it’s for.</p>
+          <span class="card__link">Visit <span class="arw">↗</span></span>
+        </div>
+      </a>
+
+    </div>
+  </section>
+
+  <!-- EDIT: REACH -->
+  <section class="reach">
+    <span class="label reach__label">[ Reach Out ]</span>
+    <div class="reach__links">
+      <a href="mailto:hello@faridhosseini.com">Email</a>
+      <a href="https://www.linkedin.com/in/faridh/">LinkedIn</a>
+    </div>
+  </section>
+
+  <!-- EDIT: PICTURE -->
+  <section class="photo">
+    <div class="photo__card reveal">
+      <div class="card card--img">
+        <img src="assets/farid.jpg" alt="Portrait of Farid H." width="1024" height="1024" loading="lazy">
+      </div>
+    </div>
+  </section>
+
+  <!-- BOTTOM BAR -->
+  <footer class="bar bar--bottom">
+    <span>Farid H. &rsquo;26</span>
+    <span>All rights reserved</span>
+  </footer>
+
+</div>
+
+<script>
+  /* Optional enhancement only — the toggle already works without JS. */
+  (function(){
+    /* SF clock */
+    var el = document.getElementById('clock');
+    function tick(){
+      if(!el) return;
+      try{
+        el.textContent = new Intl.DateTimeFormat('en-US',{
+          timeZone:'America/Los_Angeles', hour:'numeric', minute:'2-digit', hour12:true
+        }).format(new Date());
+      }catch(e){ el.textContent = '—'; }
+    }
+    tick(); setInterval(tick, 10000);
+
+    /* theme: OS by default; toggle forces light/dark and remembers it */
+    var root = document.documentElement;
+    var box = document.getElementById('theme-switch');
+    var txt = document.querySelector('.toggle__txt');
+    function isDark(){
+      if(root.classList.contains('dark')) return true;
+      if(root.classList.contains('light')) return false;
+      try{ return window.matchMedia('(prefers-color-scheme:dark)').matches; }catch(e){ return false; }
+    }
+    function apply(){
+      var d = isDark();
+      if(box) box.checked = d;
+      if(txt) txt.textContent = d ? '[ Light ]' : '[ Dark ]';
+    }
+    try{
+      var pref = localStorage.getItem('theme');
+      if(pref==='dark'){ root.classList.add('dark'); root.classList.remove('light'); }
+      else if(pref==='light'){ root.classList.add('light'); root.classList.remove('dark'); }
+    }catch(e){}
+    apply();
+    if(box){
+      box.addEventListener('change', function(){
+        if(box.checked){ root.classList.add('dark'); root.classList.remove('light'); }
+        else{ root.classList.add('light'); root.classList.remove('dark'); }
+        try{ localStorage.setItem('theme', box.checked ? 'dark' : 'light'); }catch(e){}
+        apply();
+      });
+    }
+  })();
+
+  /* Selected Work — read from works.json so the list can be edited
+     without touching this file. Falls back to the static cards above
+     (left in the markup) if the fetch fails, e.g. a local file:// open. */
+  (function(){
+    var ICONS = {
+      square:   '<rect x="5" y="5" width="30" height="30"/><path d="M5 15h30M15 5v30"/>',
+      circle:   '<circle cx="20" cy="20" r="15"/><circle cx="20" cy="20" r="5" fill="currentColor"/>',
+      triangle: '<path d="M20 5l15 26H5z"/>'
+    };
+    function esc(s){
+      return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){
+        return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c];
+      });
+    }
+    function cardHTML(item, i){
+      var icon = ICONS[item.icon] || ICONS.square;
+      var tone = (i % 3) + 1;
+      return (
+        '<a class="card card--' + tone + '" href="' + esc(item.url || '#') + '">' +
+          '<div class="card__top">' +
+            '<span class="card__tag">[ ' + esc(item.tag || '') + ' ]</span>' +
+            '<span class="card__icon" aria-hidden="true">' +
+              '<svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="2.4">' + icon + '</svg>' +
+            '</span>' +
+          '</div>' +
+          '<div class="card__body">' +
+            '<div class="card__name">' + esc(item.name) + '</div>' +
+            '<p class="card__desc">' + esc(item.description) + '</p>' +
+            '<span class="card__link">Visit <span class="arw">↗</span></span>' +
+          '</div>' +
+        '</a>'
+      );
+    }
+    fetch('works.json', { cache: 'no-cache' })
+      .then(function(res){ return res.ok ? res.json() : null; })
+      .then(function(items){
+        if(!Array.isArray(items) || !items.length) return;
+        var grid = document.getElementById('work-grid');
+        if(!grid) return;
+        grid.innerHTML = items.map(cardHTML).join('');
+      })
+      .catch(function(){ /* keep the static fallback cards */ });
+  })();
+</script>
+</body>
+</html>
