@@ -25,9 +25,12 @@
      The three cards below are just the no-JS / fetch-failed fallback.
 
      On mobile, the portrait is replaced by a second image
-     (assets/parallax.jpg) used purely as a fixed parallax backdrop
-     that peeks through between the Reach Out and footer bands as
-     you scroll — see .parallax below.
+     (assets/parallax.jpg) used purely as a decorative backdrop that
+     peeks through between the Reach Out and footer bands. It pans
+     across the full photo as that band crosses the viewport, driven
+     by a small scroll listener near the bottom of this file (CSS
+     background-attachment:fixed doesn't reliably animate on mobile
+     browsers, so this uses a transform instead).
      ============================================================ -->
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -266,10 +269,13 @@
 
   /* ---------- mobile parallax band ----------
      Desktop doesn't use this at all — hidden by default.
-     On mobile (see media query below) it becomes a full-bleed strip
-     with a fixed background image, so the photo stays put while the
-     Reach Out / footer cards (rounded, opaque) scroll over it. */
+     On mobile (see media query below) it becomes a full-bleed,
+     clipped window; the image inside is taller than the window and
+     gets translated by JS as you scroll, panning across the whole
+     photo while the Reach Out / footer cards (rounded, opaque) sit
+     on top of it. */
   .parallax{ display:none; }
+  .parallax__img{ display:none; }
 
   /* ---------- load motion ---------- */
   .headline span i{ transform:translateY(103%); animation:rise .8s cubic-bezier(.16,.84,.28,1) forwards; }
@@ -319,12 +325,18 @@
       width:100vw;
       margin-left:calc(50% - 50vw);
       margin-right:calc(50% - 50vw);
-      background-image:url('assets/parallax.jpg');
-      background-repeat:no-repeat;
-      background-size:cover;
-      background-position:center;
-      background-attachment:fixed;
+      overflow:hidden;
+    }
+    .parallax__img{
+      display:block;
+      position:absolute;
+      top:0; left:0;
+      width:100%;
+      height:160%;
+      object-fit:cover;
+      object-position:center;
       filter:grayscale(1) contrast(1.02);
+      will-change:transform;
     }
   }
 </style>
@@ -437,7 +449,9 @@
   </section>
 
   <!-- Mobile-only parallax backdrop, purely decorative -->
-  <div class="parallax" aria-hidden="true"></div>
+  <div class="parallax" aria-hidden="true">
+    <img class="parallax__img" src="assets/parallax.jpg" alt="">
+  </div>
 
   <!-- BOTTOM BAR -->
   <footer class="bar bar--bottom">
@@ -534,6 +548,42 @@
         grid.innerHTML = items.map(cardHTML).join('');
       })
       .catch(function(){ /* keep the static fallback cards */ });
+  })();
+
+  /* Mobile parallax band — pans the (oversized) image across its
+     window in step with scroll, so by the time the band has fully
+     crossed the viewport you've scrolled through the whole photo.
+     CSS background-attachment:fixed doesn't animate reliably on
+     mobile browsers, so this drives a transform instead. */
+  (function(){
+    var section = document.querySelector('.parallax');
+    var img = document.querySelector('.parallax__img');
+    if(!section || !img) return;
+    var ticking = false;
+
+    function update(){
+      ticking = false;
+      // only does anything when the mobile layout has actually sized these
+      var maxOffset = img.offsetHeight - section.offsetHeight;
+      if(maxOffset <= 0){ img.style.transform = ''; return; }
+      var vh = window.innerHeight || document.documentElement.clientHeight;
+      var docMaxScroll = document.documentElement.scrollHeight - vh;
+      // scroll position where the band's top first reaches the bottom
+      // of the viewport — progress starts counting from there, so the
+      // pan finishes exactly as the user reaches the bottom of the
+      // page, however short the page happens to be.
+      var enterScroll = Math.max(0, section.offsetTop - vh);
+      var span = docMaxScroll - enterScroll;
+      var progress = span > 0 ? (window.scrollY - enterScroll) / span : 1;
+      progress = Math.max(0, Math.min(1, progress));
+      img.style.transform = 'translateY(' + (-progress * maxOffset) + 'px)';
+    }
+    function onScroll(){
+      if(!ticking){ ticking = true; window.requestAnimationFrame(update); }
+    }
+    window.addEventListener('scroll', onScroll, { passive:true });
+    window.addEventListener('resize', onScroll);
+    update();
   })();
 </script>
 </body>
