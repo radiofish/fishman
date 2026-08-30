@@ -1,23 +1,44 @@
 [
   {
-    "name": "App One",
-    "tag": "Web",
-    "description": "One line on what it does and who it's for.",
-    "url": "#",
-    "icon": "square"
-  },
-  {
-    "name": "App Two",
+    "name": "Timing",
     "tag": "iOS",
-    "description": "One line on what it does and who it's for.",
-    "url": "#",
-    "icon": "circle"
+    "description": "The ultimate mobile planner — blends your events & tasks into one timeline, with focus timers and no login required.",
+    "url": "https://timing.is",
+    "icon": "clock"
   },
   {
-    "name": "App Three",
+    "name": "Bubbles",
+    "tag": "iOS",
+    "description": "A minimal space to capture passing thoughts and memories — tap to record, auto-tagged and timestamped.",
+    "url": "https://apps.apple.com/us/app/bubbles-remember-anything/id6744849672",
+    "icon": "bubbles"
+  },
+  {
+    "name": "Staxx",
+    "tag": "iOS · Beta",
+    "description": "DRAFT — A TestFlight beta for organizing and stacking your stuff. Please correct.",
+    "url": "https://testflight.apple.com/join/YuRbyH8u",
+    "icon": "stack"
+  },
+  {
+    "name": "Littlefooties",
     "tag": "Web",
-    "description": "One line on what it does and who it's for.",
-    "url": "#",
-    "icon": "triangle"
+    "description": "DRAFT — A cozy web app for tracking your little one's growth and milestones. Please correct.",
+    "url": "https://littlefooties-production.up.railway.app/",
+    "icon": "footprint"
+  },
+  {
+    "name": "Guitarfish",
+    "tag": "Web",
+    "description": "DRAFT — A simple web tool for guitar practice: chords, tabs, or tuning. Please correct.",
+    "url": "https://guitarfish-production.up.railway.app/",
+    "icon": "note"
+  },
+  {
+    "name": "Viber",
+    "tag": "Web",
+    "description": "DRAFT — A lightweight personal web app project. Please correct.",
+    "url": "https://viber.up.railway.app/",
+    "icon": "chat"
   }
 ]
