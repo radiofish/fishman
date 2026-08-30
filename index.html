@@ -204,7 +204,7 @@
   .hero__label{ padding-top:0.5rem; display:none; }
 
   /* portrait beside the headline — desktop only, see mobile override below */
-  .hero__media{ display:block; grid-column:1; align-self:start; }
+  .hero__media{ display:block; grid-column:1; align-self:start; border-radius:var(--radius); overflow:hidden; }
   .hero__media img{
     width:100%; height:auto; display:block;
     border-radius:var(--radius);
@@ -238,6 +238,7 @@
     gap:clamp(0.75rem,1.6vw,1.1rem);
   }
   .card{
+    position:relative;
     background:var(--c1); color:#fff; aspect-ratio:4/3;
     padding:clamp(1rem,1.8vw,1.4rem);
     display:flex; flex-direction:column; text-decoration:none;
@@ -249,6 +250,15 @@
   .card--1{ background:var(--c1); }
   .card--2{ background:var(--c2); }
   .card--3{ background:var(--c3); }
+
+  /* soft glare that tracks the tilt (see .tilt script), only shown
+     while a pointer is actively hovering — never on ambient gyro tilt */
+  .card::after{
+    content:""; position:absolute; inset:0;
+    background:radial-gradient(circle at var(--gx,50%) var(--gy,50%), rgba(255,255,255,.18), transparent 55%);
+    opacity:0; transition:opacity .3s ease; pointer-events:none;
+  }
+  .card.tilt-active::after{ opacity:1; }
 
   .card__top{ display:flex; justify-content:space-between; align-items:flex-start; }
   .card__tag{
@@ -302,6 +312,9 @@
   .headline span:nth-child(4) i{ animation-delay:.26s; }
   @keyframes rise{ to{ transform:translateY(0); } }
   @keyframes fade{ to{ transform:translateY(0); opacity:1; } }
+  /* subtle tilt-on-tilt/cursor effect, see script near the bottom */
+  .tilt{ transform-origin:center; will-change:transform; }
+
   @media (prefers-reduced-motion: reduce){
     .headline span i,.reveal{ animation:none; transform:none; opacity:1; }
     html,body,.card{ transition:none; }
@@ -380,7 +393,7 @@
   <section class="hero">
     <span class="label hero__label reveal">[ Index ]</span>
     <div class="hero__media reveal">
-      <img src="assets/farid.jpg" alt="Portrait of Farid H." width="1024" height="1024" loading="lazy">
+      <img class="tilt" data-tilt-max="5" src="assets/farid.jpg" alt="Portrait of Farid H." width="1024" height="1024" loading="lazy">
     </div>
     <h1 class="headline">
       <span><i class="t1">Farid H.</i></span>
@@ -407,7 +420,7 @@
     <span class="label">[ Selected Work ]</span>
     <div class="work__grid" id="work-grid">
 
-      <a class="card card--1" href="#">
+      <a class="card card--1 tilt" href="#">
         <div class="card__top">
           <span class="card__tag">[ Web ]</span>
           <span class="card__icon" aria-hidden="true">
@@ -423,7 +436,7 @@
         </div>
       </a>
 
-      <a class="card card--2" href="#">
+      <a class="card card--2 tilt" href="#">
         <div class="card__top">
           <span class="card__tag">[ iOS ]</span>
           <span class="card__icon" aria-hidden="true">
@@ -439,7 +452,7 @@
         </div>
       </a>
 
-      <a class="card card--3" href="#">
+      <a class="card card--3 tilt" href="#">
         <div class="card__top">
           <span class="card__tag">[ Web ]</span>
           <span class="card__icon" aria-hidden="true">
@@ -543,7 +556,7 @@
       var icon = ICONS[item.icon] || ICONS.square;
       var tone = (i % 3) + 1;
       return (
-        '<a class="card card--' + tone + '" href="' + esc(item.url || '#') + '">' +
+        '<a class="card card--' + tone + ' tilt" href="' + esc(item.url || '#') + '">' +
           '<div class="card__top">' +
             '<span class="card__tag">[ ' + esc(item.tag || '') + ' ]</span>' +
             '<span class="card__icon" aria-hidden="true">' +
@@ -603,6 +616,95 @@
     window.addEventListener('scroll', onScroll, { passive:true });
     window.addEventListener('resize', onScroll);
     update();
+  })();
+
+  /* Fun extra: subtle 3D tilt on the portrait and work cards, driven
+     by the cursor on desktop or the device gyroscope on mobile — a
+     small wink that the page reacts to you, not a redesign. Only
+     these bounded elements tilt (never the whole page), and it's
+     skipped entirely under prefers-reduced-motion. */
+  (function(){
+    if(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    if(!document.querySelector('.tilt')) return;
+
+    var pointer = null;   // {x,y} viewport coords, mouse/pen only
+    var gyro = null;      // {gx,gy} normalized -1..1, from deviceorientation
+    var states = new Map();
+
+    window.addEventListener('pointermove', function(e){
+      if(e.pointerType !== 'touch') pointer = { x:e.clientX, y:e.clientY };
+    });
+    window.addEventListener('blur', function(){ pointer = null; });
+    document.documentElement.addEventListener('mouseleave', function(){ pointer = null; });
+
+    function onOrientation(e){
+      if(e.beta == null || e.gamma == null) return;
+      // holding a phone naturally rests around a ~45° backward tilt;
+      // treat that as neutral so the effect centers on a normal grip.
+      var beta  = Math.max(-45, Math.min(45, e.beta - 45));
+      var gamma = Math.max(-45, Math.min(45, e.gamma));
+      gyro = { gx: gamma / 45, gy: beta / 45 };
+    }
+    function startGyro(){
+      if(typeof DeviceOrientationEvent === 'undefined') return;
+      if(typeof DeviceOrientationEvent.requestPermission === 'function'){
+        DeviceOrientationEvent.requestPermission()
+          .then(function(res){ if(res === 'granted') window.addEventListener('deviceorientation', onOrientation); })
+          .catch(function(){});
+      } else {
+        window.addEventListener('deviceorientation', onOrientation);
+      }
+    }
+    window.addEventListener('touchstart', startGyro, { once:true, passive:true });
+
+    function stateFor(el){
+      var s = states.get(el);
+      if(!s){ s = { rx:0, ry:0, sl:0 }; states.set(el, s); }
+      return s;
+    }
+
+    function tick(){
+      var nodes = document.querySelectorAll('.tilt');
+      for(var i=0; i<nodes.length; i++){
+        var el = nodes[i];
+        var s = stateFor(el);
+        var maxDeg = parseFloat(el.dataset.tiltMax) || 7;
+        var isCard = el.classList.contains('card');
+        var tx = 0, ty = 0, hovering = false;
+
+        if(pointer){
+          var r = el.getBoundingClientRect();
+          hovering = pointer.x >= r.left && pointer.x <= r.right &&
+                     pointer.y >= r.top  && pointer.y <= r.bottom;
+          if(hovering){
+            tx = ((pointer.x - r.left) / r.width  - 0.5) * 2;
+            ty = ((pointer.y - r.top)  / r.height - 0.5) * 2;
+          }
+        } else if(gyro){
+          tx = gyro.gx; ty = gyro.gy;
+        }
+
+        s.rx += ((-ty * maxDeg) - s.rx) * 0.15;
+        s.ry += (( tx * maxDeg) - s.ry) * 0.15;
+        s.sl += (((hovering && isCard) ? -3 : 0) - s.sl) * 0.2;
+
+        if(isCard) el.classList.toggle('tilt-active', hovering);
+
+        if(Math.abs(s.rx) < 0.02 && Math.abs(s.ry) < 0.02 && Math.abs(s.sl) < 0.02){
+          s.rx = s.ry = s.sl = 0;
+          el.style.transform = '';
+          el.style.removeProperty('--gx');
+          el.style.removeProperty('--gy');
+          continue;
+        }
+        el.style.transform = 'perspective(800px) rotateX(' + s.rx.toFixed(2) + 'deg) rotateY(' +
+          s.ry.toFixed(2) + 'deg) translateY(' + s.sl.toFixed(2) + 'px)';
+        el.style.setProperty('--gx', (50 + s.ry * 4).toFixed(1) + '%');
+        el.style.setProperty('--gy', (50 - s.rx * 4).toFixed(1) + '%');
+      }
+      requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
   })();
 </script>
 </body>
