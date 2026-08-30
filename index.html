@@ -143,6 +143,22 @@
     display:flex; flex-direction:column;
   }
 
+  /* ---------- top/bottom frame lines ----------
+     Pinned to the viewport edges (not the document), so they read as
+     a constant border around the whole page. --ink already flips
+     between near-black and near-white with the theme, so these need
+     no separate dark-mode rule. */
+  .edge-line{
+    position:fixed; left:0; right:0;
+    height:10px;
+    background:var(--ink);
+    z-index:50;
+    pointer-events:none;
+    transition:background-color .3s ease;
+  }
+  .edge-line--top{ top:0; }
+  .edge-line--bottom{ bottom:0; }
+
   .label{
     font-family:"IBM Plex Mono", monospace;
     font-size:0.68rem; letter-spacing:0.08em;
@@ -343,6 +359,9 @@
 </head>
 
 <body>
+<div class="edge-line edge-line--top" aria-hidden="true"></div>
+<div class="edge-line edge-line--bottom" aria-hidden="true"></div>
+
 <div class="frame">
 
   <!-- EDIT: TOPBAR -->
