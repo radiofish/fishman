@@ -15,13 +15,19 @@
      EDIT the marked spots:
        EDIT: TOPBAR   — name + contact email
        EDIT: ABOUT    — the bio blurb
-       EDIT: PICTURE  — the portrait image
+       EDIT: PICTURE  — the portrait image (sits beside the headline
+                        on desktop; hidden on mobile, see below)
        EDIT: REACH    — the big footer links
 
      Selected Work cards are NOT edited here — they're read from
      works.json (fetched at load time) so the list can be updated
      without touching any markup. See works.json in this same folder.
      The three cards below are just the no-JS / fetch-failed fallback.
+
+     On mobile, the portrait is replaced by a second image
+     (assets/parallax.jpg) used purely as a fixed parallax backdrop
+     that peeks through between the Reach Out and footer bands as
+     you scroll — see .parallax below.
      ============================================================ -->
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -173,9 +179,18 @@
   /* ---------- hero ---------- */
   .hero{
     display:grid; grid-template-columns:1fr 3.4fr; gap:1.5rem;
+    align-items:start;
     padding:clamp(3.5rem,11vw,7rem) 0 clamp(2.5rem,7vw,4.5rem);
   }
-  .hero__label{ padding-top:0.5rem; }
+  .hero__label{ padding-top:0.5rem; display:none; }
+
+  /* portrait beside the headline — desktop only, see mobile override below */
+  .hero__media{ display:block; grid-column:1; align-self:start; }
+  .hero__media img{
+    width:100%; height:auto; display:block;
+    border-radius:var(--radius);
+    filter:grayscale(1) contrast(1.02);
+  }
 
   .headline{
     font-weight:800;
@@ -216,13 +231,6 @@
   .card--2{ background:var(--c2); }
   .card--3{ background:var(--c3); }
 
-  /* image card — fills the tile, no padding */
-  .card--img{ padding:0; aspect-ratio:auto; display:block; background:transparent; border:none; }
-  .card--img img{
-    width:100%; height:auto; display:block;
-    border-radius:inherit;
-    filter:grayscale(1) contrast(1.02);   /* stays on-theme */
-  }
   .card__top{ display:flex; justify-content:space-between; align-items:flex-start; }
   .card__tag{
     font-family:"IBM Plex Mono", monospace; font-size:0.62rem;
@@ -243,10 +251,6 @@
   .card:hover .card__link .arw{ transform:translate(3px,-3px); }
   .card:focus-visible{ outline:2px solid var(--ink); outline-offset:3px; }
 
-  /* ---------- portrait card ---------- */
-  .photo{ display:grid; grid-template-columns:1fr 3.4fr; gap:1.5rem; padding:0 0 clamp(3rem,8vw,5rem); }
-  .photo__card{ grid-column:2; max-width:320px; width:100%; }
-
   /* ---------- reach ---------- */
   .reach{ display:grid; grid-template-columns:1fr 3.4fr; gap:1.5rem; padding:0 0 clamp(3rem,8vw,5.5rem); }
   .reach__label{ padding-top:0.9rem; }
@@ -259,6 +263,13 @@
   }
   .reach__links a:hover{ opacity:0.45; }
   .reach__links a:focus-visible{ outline:2px solid var(--ink); outline-offset:4px; }
+
+  /* ---------- mobile parallax band ----------
+     Desktop doesn't use this at all — hidden by default.
+     On mobile (see media query below) it becomes a full-bleed strip
+     with a fixed background image, so the photo stays put while the
+     Reach Out / footer cards (rounded, opaque) scroll over it. */
+  .parallax{ display:none; }
 
   /* ---------- load motion ---------- */
   .headline span i{ transform:translateY(103%); animation:rise .8s cubic-bezier(.16,.84,.28,1) forwards; }
@@ -276,13 +287,45 @@
 
   /* ---------- responsive ---------- */
   @media (max-width:720px){
-    .hero,.about,.reach,.photo{ grid-template-columns:1fr; gap:0.75rem; }
+    .hero,.about,.reach{ grid-template-columns:1fr; gap:0.75rem; }
     .hero__label,.about__label,.reach__label{ padding-top:0; }
     .work__grid{ grid-template-columns:1fr; }
-    .photo__card{ grid-column:auto; margin-right:auto; }
     .card{ aspect-ratio:auto; min-height:150px; }
     .bar .mid{ display:none; }
     .reach__links a{ font-size:clamp(2rem,13vw,3rem); }
+
+    /* portrait is desktop-only; mobile keeps the plain [ Index ] label */
+    .hero__label{ display:block; }
+    .hero__media{ display:none; }
+
+    /* Reach Out and the footer become opaque, full-bleed, rounded
+       "sheets" so the parallax strip between them reads as a window
+       onto the fixed backdrop image rather than a plain image block. */
+    .reach,.bar--bottom{
+      position:relative; z-index:1;
+      background:var(--paper);
+      width:100vw;
+      margin-left:calc(50% - 50vw);
+      margin-right:calc(50% - 50vw);
+      padding-left:var(--pad); padding-right:var(--pad);
+    }
+    .reach{ border-radius:0 0 22px 22px; padding-bottom:2rem; margin-bottom:-22px; }
+    .bar--bottom{ border-radius:22px 22px 0 0; border-top:none; padding-top:1.4rem; margin-top:-22px; }
+
+    .parallax{
+      display:block;
+      position:relative; z-index:0;
+      height:38vh; min-height:200px;
+      width:100vw;
+      margin-left:calc(50% - 50vw);
+      margin-right:calc(50% - 50vw);
+      background-image:url('assets/parallax.jpg');
+      background-repeat:no-repeat;
+      background-size:cover;
+      background-position:center;
+      background-attachment:fixed;
+      filter:grayscale(1) contrast(1.02);
+    }
   }
 </style>
 </head>
@@ -305,6 +348,9 @@
   <!-- HERO -->
   <section class="hero">
     <span class="label hero__label reveal">[ Index ]</span>
+    <div class="hero__media reveal">
+      <img src="assets/farid.jpg" alt="Portrait of Farid H." width="1024" height="1024" loading="lazy">
+    </div>
     <h1 class="headline">
       <span><i class="t1">Farid H.</i></span>
       <span><i class="t2">Product</i></span>
@@ -390,14 +436,8 @@
     </div>
   </section>
 
-  <!-- EDIT: PICTURE -->
-  <section class="photo">
-    <div class="photo__card reveal">
-      <div class="card card--img">
-        <img src="assets/farid.jpg" alt="Portrait of Farid H." width="1024" height="1024" loading="lazy">
-      </div>
-    </div>
-  </section>
+  <!-- Mobile-only parallax backdrop, purely decorative -->
+  <div class="parallax" aria-hidden="true"></div>
 
   <!-- BOTTOM BAR -->
   <footer class="bar bar--bottom">
