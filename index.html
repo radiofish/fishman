@@ -24,7 +24,11 @@
      without touching any markup. See works.json in this same folder.
      The three cards below are just the no-JS / fetch-failed fallback.
 
-     On mobile, the same portrait (assets/farid.jpg) is reused as a
+     The portrait is served from resized WebP copies (assets/farid-480,
+     -800, -1024.webp) with assets/farid.jpg as the fallback — if you
+     swap the photo, regenerate those too.
+
+     On mobile, the same portrait is reused as a
      decorative backdrop that peeks through between the Reach Out and
      footer bands. It pans
      across the full photo as that band crosses the viewport, driven
@@ -33,11 +37,30 @@
      browsers, so this uses a transform instead).
      ============================================================ -->
 
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;700;800;900&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<!-- Fonts are self-hosted (latin subsets from Google Fonts) so nothing
+     render-blocking comes from a third-party origin. Archivo is one
+     variable file covering every weight. -->
+<link rel="preload" href="assets/fonts/archivo-var-latin.woff2" as="font" type="font/woff2" crossorigin>
+<!-- start fetching the Selected Work data alongside the HTML -->
+<link rel="preload" href="works.json" as="fetch" crossorigin>
 
 <style>
+  @font-face{
+    font-family:"Archivo"; font-style:normal; font-weight:400 800; font-stretch:100%; font-display:swap;
+    src:url(assets/fonts/archivo-var-latin.woff2) format("woff2");
+    unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+  }
+  @font-face{
+    font-family:"IBM Plex Mono"; font-style:normal; font-weight:400; font-display:swap;
+    src:url(assets/fonts/ibm-plex-mono-400-latin.woff2) format("woff2");
+    unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+  }
+  @font-face{
+    font-family:"IBM Plex Mono"; font-style:normal; font-weight:500; font-display:swap;
+    src:url(assets/fonts/ibm-plex-mono-500-latin.woff2) format("woff2");
+    unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+  }
+
   /* ---------- LIGHT (default) ---------- */
   :root{
     color-scheme:light dark;
@@ -398,7 +421,10 @@
   <section class="hero">
     <span class="label hero__label reveal">[ Index ]</span>
     <div class="hero__media reveal">
-      <img class="tilt" data-tilt-max="5" src="assets/farid.jpg" alt="Portrait of Farid H." width="1024" height="1024" loading="lazy">
+      <img class="tilt" data-tilt-max="5" src="assets/farid.jpg"
+        srcset="assets/farid-480.webp 480w, assets/farid-800.webp 800w, assets/farid-1024.webp 1024w"
+        sizes="(min-width:721px) 250px, 1px"
+        alt="Portrait of Farid H." width="1024" height="1024" loading="lazy" decoding="async">
     </div>
     <h1 class="headline">
       <span><i class="t1">Farid H.</i></span>
@@ -487,7 +513,10 @@
 
   <!-- Mobile-only parallax backdrop, purely decorative -->
   <div class="parallax" aria-hidden="true">
-    <img class="parallax__img" src="assets/farid.jpg" alt="">
+    <img class="parallax__img" src="assets/farid.jpg"
+      srcset="assets/farid-480.webp 480w, assets/farid-800.webp 800w, assets/farid-1024.webp 1024w"
+      sizes="(max-width:720px) max(100vw, 61vh), 1px"
+      alt="" loading="lazy" decoding="async">
   </div>
 
   <!-- BOTTOM BAR -->
@@ -599,7 +628,7 @@
         '</a>'
       );
     }
-    fetch('works.json', { cache: 'no-cache' })
+    fetch('works.json')
       .then(function(res){ return res.ok ? res.json() : null; })
       .then(function(items){
         if(!Array.isArray(items) || !items.length) return;
@@ -643,7 +672,7 @@
     }
     window.addEventListener('scroll', onScroll, { passive:true });
     window.addEventListener('resize', onScroll);
-    update();
+    onScroll(); // first pass on the next frame, not mid-parse (avoids a forced reflow)
   })();
 
   /* Fun extra: subtle 3D tilt on the portrait and work cards, driven
