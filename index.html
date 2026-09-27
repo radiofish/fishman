@@ -345,6 +345,27 @@
   /* subtle tilt-on-tilt/cursor effect, see script near the bottom */
   .tilt{ transform-origin:center; will-change:transform; }
 
+  /* ---------- cursor field (desktop only, see script at the bottom) ----------
+     The cursor itself stays normal; the page underneath reacts to it:
+     a dot grid surfaces around it and gets pushed aside, headline
+     letters thin out as it passes, and cards/links flip under a blob.
+     Everything here is added by JS only when a fine pointer is present
+     and motion isn't reduced, so phones and reduced-motion get none. */
+  .field{
+    position:fixed; inset:0; width:100%; height:100%;
+    z-index:0; pointer-events:none;
+  }
+  .has-field .frame{ position:relative; z-index:1; }
+  .headline .ch{ display:inline; overflow:visible; }
+  .blob{
+    position:fixed; left:0; top:0; width:120px; height:120px;
+    margin:-60px 0 0 -60px; border-radius:50%;
+    background:#fff; mix-blend-mode:difference;
+    pointer-events:none; z-index:60;
+    transform:translate3d(-200px,-200px,0) scale(0);
+    will-change:transform;
+  }
+
   @media (prefers-reduced-motion: reduce){
     .headline span i,.reveal{ animation:none; transform:none; opacity:1; }
     html,body,.card{ transition:none; }
@@ -765,6 +786,222 @@
       requestAnimationFrame(tick);
     }
     requestAnimationFrame(tick);
+  })();
+
+  /* Cursor field — the page reacts to the cursor rather than the cursor
+     being decorated. Three layers share one animation loop:
+       1. a dot grid, anchored to the page, that surfaces around the
+          cursor and gets shoved aside, springing back with a small wobble
+       2. headline letters that thin out (variable weight) as you pass
+       3. a difference-blended blob that flips cards and links you hover
+     Desktop with a real mouse only; skipped under reduced motion. The
+     loop stops itself whenever everything has settled. */
+  (function(){
+    var mq = window.matchMedia;
+    if(!mq || !mq('(hover: hover) and (pointer: fine)').matches) return;
+    if(mq('(prefers-reduced-motion: reduce)').matches) return;
+
+    var root = document.documentElement;
+    root.classList.add('has-field');
+
+    /* ---- setup ---- */
+    var canvas = document.createElement('canvas');
+    canvas.className = 'field';
+    canvas.setAttribute('aria-hidden', 'true');
+    document.body.insertBefore(canvas, document.body.firstChild);
+    var ctx = canvas.getContext('2d');
+
+    var blob = document.createElement('div');
+    blob.className = 'blob';
+    blob.setAttribute('aria-hidden', 'true');
+    document.body.appendChild(blob);
+
+    // split the headline into per-letter spans; the h1 keeps a plain
+    // aria-label so screen readers still hear words, not letters
+    var h1 = document.querySelector('.headline');
+    var letters = [];
+    if(h1){
+      var walker = document.createTreeWalker(h1, NodeFilter.SHOW_TEXT);
+      var nodes = [];
+      while(walker.nextNode()) if(walker.currentNode.nodeValue.trim()) nodes.push(walker.currentNode);
+      h1.setAttribute('aria-label', nodes.map(function(n){ return n.nodeValue.trim(); }).join(' '));
+      nodes.forEach(function(node){
+        var frag = document.createDocumentFragment();
+        node.nodeValue.split('').forEach(function(c){
+          if(c === ' '){ frag.appendChild(document.createTextNode(' ')); return; }
+          var sp = document.createElement('span');
+          sp.className = 'ch'; sp.setAttribute('aria-hidden', 'true');
+          sp.textContent = c;
+          frag.appendChild(sp);
+          letters.push({ el:sp, x:0, y:0, w:800, shown:800 });
+        });
+        node.parentNode.replaceChild(frag, node);
+      });
+    }
+
+    /* ---- tunables ---- */
+    var SP = 24;          // grid spacing, px
+    var R_SHOW = 230;     // how far around the cursor dots surface
+    var R_PUSH = 140;     // radius of the push
+    var PUSH = 2.4;       // push strength
+    var SPRING = 0.075, DAMP = 0.84;
+    var W_MAX = 800, W_MIN = 380, R_TYPE = 210;
+
+    /* ---- state ---- */
+    var dpr = 1, vw = 0, vh = 0;
+    var mx = -9999, my = -9999;       // pointer, viewport coords
+    var presence = 0, inside = false; // fades the field in/out
+    var dots = new Map();             // displaced dots, keyed by page row:col
+    var ink = '14,14,14';
+    var bx = -200, by = -200, bs = 0, bTarget = 0;
+    var running = false;
+
+    function readInk(){
+      var c = getComputedStyle(root).getPropertyValue('--ink').trim();
+      var m = /^#?([0-9a-f]{6})$/i.exec(c);
+      if(m){ var n = parseInt(m[1], 16); ink = (n >> 16) + ',' + ((n >> 8) & 255) + ',' + (n & 255); }
+    }
+    function resize(){
+      dpr = Math.min(window.devicePixelRatio || 1, 2);
+      vw = window.innerWidth; vh = window.innerHeight;
+      canvas.width = vw * dpr; canvas.height = vh * dpr;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      measureLetters();
+      kick();
+    }
+    function measureLetters(){
+      var sx = window.scrollX, sy = window.scrollY;
+      letters.forEach(function(l){
+        var r = l.el.getBoundingClientRect();
+        l.x = r.left + r.width / 2 + sx; l.y = r.top + r.height / 2 + sy;
+      });
+    }
+
+    /* ---- the loop ---- */
+    function kick(){ if(!running){ running = true; requestAnimationFrame(frame); } }
+
+    function frame(){
+      var sx = window.scrollX, sy = window.scrollY;
+      var px = mx + sx, py = my + sy;          // pointer in page coords
+      presence += ((inside ? 1 : 0) - presence) * 0.08;
+      var busy = Math.abs((inside ? 1 : 0) - presence) > 0.01;
+
+      // 1. push the dots near the pointer, spring every displaced dot back
+      if(inside){
+        var c0 = Math.floor((px - R_PUSH) / SP), c1 = Math.ceil((px + R_PUSH) / SP);
+        var r0 = Math.floor((py - R_PUSH) / SP), r1 = Math.ceil((py + R_PUSH) / SP);
+        for(var r = r0; r <= r1; r++) for(var c = c0; c <= c1; c++){
+          var dx = c * SP - px, dy = r * SP - py, d = Math.sqrt(dx * dx + dy * dy);
+          if(d >= R_PUSH || d < 0.001) continue;
+          var k = r + ':' + c, dot = dots.get(k);
+          if(!dot){ dot = { r:r, c:c, ox:0, oy:0, vx:0, vy:0 }; dots.set(k, dot); }
+          var f = (1 - d / R_PUSH); f = f * f * PUSH * presence;
+          dot.vx += dx / d * f; dot.vy += dy / d * f;
+        }
+      }
+      var moving = false;
+      dots.forEach(function(dot, k){
+        dot.vx = (dot.vx - dot.ox * SPRING) * DAMP;
+        dot.vy = (dot.vy - dot.oy * SPRING) * DAMP;
+        dot.ox += dot.vx; dot.oy += dot.vy;
+        var m = Math.sqrt(dot.ox * dot.ox + dot.oy * dot.oy);
+        if(m > 34){ dot.ox *= 34 / m; dot.oy *= 34 / m; }
+        var v = Math.abs(dot.vx) + Math.abs(dot.vy);
+        if(m < 0.05 && v < 0.05) dots.delete(k);
+        else if(v > 0.02) moving = true;
+      });
+      // dots held still by a resting pointer don't keep the loop alive
+      if(moving) busy = true;
+
+      // draw: dots surface in a soft pool around the pointer; displaced
+      // dots stay lit while they're still moving, which leaves the wake
+      ctx.clearRect(0, 0, vw, vh);
+      if(presence > 0.01 || dots.size){
+        ctx.fillStyle = 'rgb(' + ink + ')';
+        var drawn = {};
+        var reach = R_SHOW;
+        var cc0 = Math.floor((px - reach) / SP), cc1 = Math.ceil((px + reach) / SP);
+        var rr0 = Math.floor((py - reach) / SP), rr1 = Math.ceil((py + reach) / SP);
+        var drawDot = function(r, c, dot){
+          var gx = c * SP, gy = r * SP;
+          var dx = gx - px, dy = gy - py, d = Math.sqrt(dx * dx + dy * dy);
+          var pool = d < R_SHOW ? Math.pow(1 - d / R_SHOW, 1.6) * presence : 0;
+          var energy = dot ? Math.min(1, Math.sqrt(dot.ox * dot.ox + dot.oy * dot.oy) / 14) : 0;
+          var a = Math.max(pool * 0.5, energy * 0.55);
+          if(a < 0.015) return;
+          var rad = 0.9 + pool * 1.1 + energy * 1.3;
+          ctx.globalAlpha = a;
+          ctx.beginPath();
+          ctx.arc(gx + (dot ? dot.ox : 0) - sx, gy + (dot ? dot.oy : 0) - sy, rad, 0, 6.2832);
+          ctx.fill();
+        };
+        if(presence > 0.01){
+          for(var r2 = rr0; r2 <= rr1; r2++) for(var c2 = cc0; c2 <= cc1; c2++){
+            var key = r2 + ':' + c2; drawn[key] = 1;
+            drawDot(r2, c2, dots.get(key));
+          }
+        }
+        dots.forEach(function(dot, key){ if(!drawn[key]) drawDot(dot.r, dot.c, dot); });
+        ctx.globalAlpha = 1;
+      }
+
+      // 2. headline letters thin out around the pointer
+      for(var i = 0; i < letters.length; i++){
+        var l = letters[i];
+        var ldx = l.x - px, ldy = (l.y - py) * 1.3, ld = Math.sqrt(ldx * ldx + ldy * ldy);
+        var g = ld < R_TYPE ? 1 - ld / R_TYPE : 0;
+        g = g * g * (3 - 2 * g) * presence;               // smoothstep
+        var target = W_MAX - (W_MAX - W_MIN) * g;
+        l.w += (target - l.w) * 0.14;
+        if(Math.abs(target - l.w) > 0.5) busy = true; else l.w = target;
+        var rounded = Math.round(l.w);
+        if(rounded !== l.shown){ l.shown = rounded; l.el.style.fontWeight = rounded === W_MAX ? '' : rounded; }
+      }
+
+      // 3. the blob trails the pointer and opens over clickable things
+      bx += (mx - bx) * 0.2; by += (my - by) * 0.2;
+      bs += (bTarget * presence - bs) * 0.16;
+      if(Math.abs(mx - bx) + Math.abs(my - by) > 0.3 || Math.abs(bTarget * presence - bs) > 0.005) busy = true;
+      blob.style.transform = 'translate3d(' + bx.toFixed(1) + 'px,' + by.toFixed(1) + 'px,0) scale(' + bs.toFixed(3) + ')';
+
+      if(busy){ requestAnimationFrame(frame); }
+      else { running = false; }
+    }
+
+    /* ---- input ---- */
+    var TARGETS = [
+      ['.card', 1],
+      ['.reach__links a', 0.85],
+      ['.toggle, .bar a', 0.32]
+    ];
+    function targetScale(el){
+      for(var i = 0; i < TARGETS.length; i++) if(el && el.closest && el.closest(TARGETS[i][0])) return TARGETS[i][1];
+      return 0;
+    }
+    window.addEventListener('pointermove', function(e){
+      if(e.pointerType && e.pointerType !== 'mouse') return;
+      if(!inside){ bx = e.clientX; by = e.clientY; }
+      mx = e.clientX; my = e.clientY; inside = true;
+      bTarget = targetScale(e.target);
+      kick();
+    }, { passive:true });
+    document.addEventListener('mouseleave', function(){ inside = false; bTarget = 0; kick(); });
+    window.addEventListener('blur', function(){ inside = false; bTarget = 0; kick(); });
+    window.addEventListener('scroll', kick, { passive:true });
+    window.addEventListener('resize', resize);
+
+    // letters move once the load animation and webfont settle
+    if(document.fonts && document.fonts.ready) document.fonts.ready.then(measureLetters);
+    setTimeout(measureLetters, 1200);
+
+    // follow the theme toggle and the OS setting
+    readInk();
+    new MutationObserver(function(){ readInk(); kick(); }).observe(root, { attributes:true, attributeFilter:['class'] });
+    if(mq('(prefers-color-scheme: dark)').addEventListener){
+      mq('(prefers-color-scheme: dark)').addEventListener('change', function(){ readInk(); kick(); });
+    }
+
+    resize();
   })();
 </script>
 </body>
