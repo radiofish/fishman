@@ -347,8 +347,8 @@
 
   /* ---------- cursor field (desktop only, see script at the bottom) ----------
      The cursor itself stays normal; the page underneath reacts to it:
-     a dot grid surfaces around it and gets pushed aside, headline
-     letters thin out as it passes, and cards/links flip under a blob.
+     a fine dot grid surfaces around it and gets pushed aside, and
+     headline letters thin out as it passes.
      Everything here is added by JS only when a fine pointer is present
      and motion isn't reduced, so phones and reduced-motion get none. */
   .field{
@@ -357,14 +357,6 @@
   }
   .has-field .frame{ position:relative; z-index:1; }
   .headline .ch{ display:inline; overflow:visible; }
-  .blob{
-    position:fixed; left:0; top:0; width:120px; height:120px;
-    margin:-60px 0 0 -60px; border-radius:50%;
-    background:#fff; mix-blend-mode:difference;
-    pointer-events:none; z-index:60;
-    transform:translate3d(-200px,-200px,0) scale(0);
-    will-change:transform;
-  }
 
   @media (prefers-reduced-motion: reduce){
     .headline span i,.reveal{ animation:none; transform:none; opacity:1; }
@@ -789,11 +781,10 @@
   })();
 
   /* Cursor field — the page reacts to the cursor rather than the cursor
-     being decorated. Three layers share one animation loop:
-       1. a dot grid, anchored to the page, that surfaces around the
+     being decorated. Two layers share one animation loop:
+       1. a fine dot grid, anchored to the page, that surfaces around the
           cursor and gets shoved aside, springing back with a small wobble
        2. headline letters that thin out (variable weight) as you pass
-       3. a difference-blended blob that flips cards and links you hover
      Desktop with a real mouse only; skipped under reduced motion. The
      loop stops itself whenever everything has settled. */
   (function(){
@@ -810,11 +801,6 @@
     canvas.setAttribute('aria-hidden', 'true');
     document.body.insertBefore(canvas, document.body.firstChild);
     var ctx = canvas.getContext('2d');
-
-    var blob = document.createElement('div');
-    blob.className = 'blob';
-    blob.setAttribute('aria-hidden', 'true');
-    document.body.appendChild(blob);
 
     // split the headline into per-letter spans; the h1 keeps a plain
     // aria-label so screen readers still hear words, not letters
@@ -840,10 +826,11 @@
     }
 
     /* ---- tunables ---- */
-    var SP = 24;          // grid spacing, px
-    var R_SHOW = 230;     // how far around the cursor dots surface
-    var R_PUSH = 140;     // radius of the push
-    var PUSH = 2.4;       // push strength
+    var SP = 14;          // grid spacing, px
+    var R_SHOW = 120;     // how far around the cursor dots surface
+    var R_PUSH = 72;      // radius of the push
+    var PUSH = 1.5;       // push strength
+    var MAX_OFF = 14;     // furthest a dot can be shoved, px
     var SPRING = 0.075, DAMP = 0.84;
     var W_MAX = 800, W_MIN = 380, R_TYPE = 210;
 
@@ -853,7 +840,6 @@
     var presence = 0, inside = false; // fades the field in/out
     var dots = new Map();             // displaced dots, keyed by page row:col
     var ink = '14,14,14';
-    var bx = -200, by = -200, bs = 0, bTarget = 0;
     var running = false;
 
     function readInk(){
@@ -903,10 +889,13 @@
       dots.forEach(function(dot, k){
         dot.vx = (dot.vx - dot.ox * SPRING) * DAMP;
         dot.vy = (dot.vy - dot.oy * SPRING) * DAMP;
+        var pox = dot.ox, poy = dot.oy;
         dot.ox += dot.vx; dot.oy += dot.vy;
         var m = Math.sqrt(dot.ox * dot.ox + dot.oy * dot.oy);
-        if(m > 34){ dot.ox *= 34 / m; dot.oy *= 34 / m; }
-        var v = Math.abs(dot.vx) + Math.abs(dot.vy);
+        if(m > MAX_OFF){ dot.ox *= MAX_OFF / m; dot.oy *= MAX_OFF / m; }
+        // how far it actually moved this frame (a dot pinned at the limit
+        // by a resting pointer still has velocity but isn't moving)
+        var v = Math.abs(dot.ox - pox) + Math.abs(dot.oy - poy);
         if(m < 0.05 && v < 0.05) dots.delete(k);
         else if(v > 0.02) moving = true;
       });
@@ -926,10 +915,10 @@
           var gx = c * SP, gy = r * SP;
           var dx = gx - px, dy = gy - py, d = Math.sqrt(dx * dx + dy * dy);
           var pool = d < R_SHOW ? Math.pow(1 - d / R_SHOW, 1.6) * presence : 0;
-          var energy = dot ? Math.min(1, Math.sqrt(dot.ox * dot.ox + dot.oy * dot.oy) / 14) : 0;
-          var a = Math.max(pool * 0.5, energy * 0.55);
+          var energy = dot ? Math.min(1, Math.sqrt(dot.ox * dot.ox + dot.oy * dot.oy) / 8) : 0;
+          var a = Math.max(pool * 0.3, energy * 0.32);
           if(a < 0.015) return;
-          var rad = 0.9 + pool * 1.1 + energy * 1.3;
+          var rad = 0.6 + pool * 0.45 + energy * 0.45;
           ctx.globalAlpha = a;
           ctx.beginPath();
           ctx.arc(gx + (dot ? dot.ox : 0) - sx, gy + (dot ? dot.oy : 0) - sy, rad, 0, 6.2832);
@@ -958,35 +947,18 @@
         if(rounded !== l.shown){ l.shown = rounded; l.el.style.fontWeight = rounded === W_MAX ? '' : rounded; }
       }
 
-      // 3. the blob trails the pointer and opens over clickable things
-      bx += (mx - bx) * 0.2; by += (my - by) * 0.2;
-      bs += (bTarget * presence - bs) * 0.16;
-      if(Math.abs(mx - bx) + Math.abs(my - by) > 0.3 || Math.abs(bTarget * presence - bs) > 0.005) busy = true;
-      blob.style.transform = 'translate3d(' + bx.toFixed(1) + 'px,' + by.toFixed(1) + 'px,0) scale(' + bs.toFixed(3) + ')';
-
       if(busy){ requestAnimationFrame(frame); }
       else { running = false; }
     }
 
     /* ---- input ---- */
-    var TARGETS = [
-      ['.card', 1],
-      ['.reach__links a', 0.85],
-      ['.toggle, .bar a', 0.32]
-    ];
-    function targetScale(el){
-      for(var i = 0; i < TARGETS.length; i++) if(el && el.closest && el.closest(TARGETS[i][0])) return TARGETS[i][1];
-      return 0;
-    }
     window.addEventListener('pointermove', function(e){
       if(e.pointerType && e.pointerType !== 'mouse') return;
-      if(!inside){ bx = e.clientX; by = e.clientY; }
       mx = e.clientX; my = e.clientY; inside = true;
-      bTarget = targetScale(e.target);
       kick();
     }, { passive:true });
-    document.addEventListener('mouseleave', function(){ inside = false; bTarget = 0; kick(); });
-    window.addEventListener('blur', function(){ inside = false; bTarget = 0; kick(); });
+    document.addEventListener('mouseleave', function(){ inside = false; kick(); });
+    window.addEventListener('blur', function(){ inside = false; kick(); });
     window.addEventListener('scroll', kick, { passive:true });
     window.addEventListener('resize', resize);
 
